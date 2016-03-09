@@ -1,7 +1,10 @@
-.PROGRAM main()
-	C_STOP = 4
-	C_J = 5
- 	C_GetPositionAxis = 6
+.PROGRAM main2()
+	C_STOP = 4; остановка
+	C_J = 5; управление конкретным джоиндом
+ 	C_GetPositionAxis = 6; получить положение оси
+	C_GetPosition = 7; получить положение координаты
+	C_J_POINT = 8; управление по осям
+
 	buffer[1,1] = 0
 	port = 40000
 	tout_open = 60 
@@ -18,8 +21,10 @@
 	netPos = 0
 	circle = 0
 	pcexecute 1: recv,-1
+	pcexecute 2: writeStats,-1
 	posRead = 0;
 	posWrite = 0;
+	sending_mode =0
 	
 	while 1==1 do
 		if circle <> 0
@@ -39,16 +44,19 @@
 		 	    pos_read = pos_read + 1
     			    if pos_read == 10000 then
 				pos_read = 1
-			end
-			call execution(.id,.cmd,.param,.vec1,.vec2,.vec3,.vec4,.vec5,.vec6)
-        end
+			     end
+			    call execution(.id,.cmd,.param,.vec1,.vec2,.vec3,.vec4,.vec5,.vec6)
+			
+        		end
+			
 		end
 	end;
 exit:
 	PRINT "Get exit"
 	CALL close_socket
-	PRINT "SOCEC_CLOSED"
-	pcabort 1:
+	PCABORT 1:
+	PCABORT 2:
+	PRINT "SOCKEC_CLOSED"
 exit_end:
 .END 
 
@@ -86,9 +94,38 @@ exit_end:
 		sending_mode = 1
 		call sendstring(0,C_GetPositionAxis,0,.arr[1],.arr[2],.arr[3],.arr[4],.arr[5],.arr[6])
 		sending_mode = 0
+	value C_J_POINT
+		if (.param<=0) 
+			.jspeed = 10
+		else
+			.jspeed = .param
+		end
+		SPEED .jspeed*3 MM/S,.jspeed DEG/S ALWAYS
+		JMOVE #PPOINT(.vec1,.vec2,.vec3,.vec4,.vec5,.vec6)
 	any :
  		print "Number of command: ",.tmp[2]
 	end
+.END
+
+.PROGRAM writeStats
+if circle<>1
+	PRINT "SEND STATS"
+		HERE .#p
+		DECOMPOSE .arr[1]=.#p
+		while sending_mode == 1 do
+		end
+		sending_mode = 1
+		call sendstring(0,C_GetPositionAxis,0,.arr[1],.arr[2],.arr[3],.arr[4],.arr[5],.arr[6])
+		sending_mode = 0
+		POINT .p = HERE
+		DECOMPOSE .arr[1]=.p
+		while sending_mode == 1 do
+		end
+		sending_mode = 1
+		call sendstring(0,C_GetPosition,0,.arr[1],.arr[2],.arr[3],.arr[4],.arr[5],.arr[6])  
+		sending_mode = 0
+	TWAIT 0.5
+end
 .END
 
 .PROGRAM sendstring(.id,.cmd,.param,.vec1,.vec2,.vec3,.vec4,.vec5,.vec6)
@@ -112,7 +149,6 @@ exit_end:
 	IF .sret<0 THEN
 		PRINT "Sending failed"
 	END
-	;twait 0.2
 .END
 
 
