@@ -1,30 +1,54 @@
-.PROGRAM main2()
-	C_STOP = 4; остановка
-	C_J = 5; управление конкретным джоиндом
- 	C_GetPositionAxis = 6; получить положение оси
-	C_GetPosition = 7; получить положение координаты
-	C_J_POINT = 8; управление по осям
+.PROGRAM m()
+	C_STOP = 4; // остановка
+	C_J = 5; // относительный поворот одного оклена
+ 	C_GetPositionAxis = 6; // положение в поворотах
+	C_GetPosition = 7; // положение в осях
+	C_J_POINT = 8; // управление по координатам
+	C_D_POINT = 9; // управление по окординатам
+	C_HOME1 = 10; //выход в домашнюю зону 1
+	C_HOME2 = 11;// выход в домашнюю зону 2
+	C_ERR = 12; // ошибка
+	c_draw  = 13; //смещение
+	C_SET_POS = 14; //задание по почте
+	C_SET_DELTA_POS = 15; // задание на смещение на условную единицу
+	
+	err_inrange_j1 = 1; 
+	err_inrange_j2 = 2;
+	err_inrange_j3 = 4; 
+	err_inrange_j4 = 8; 
+	err_inrange_j5 = 16; 
+	err_inrange_j6 = 32; 
+	err_not_inrange = 32786; 
+
+	max_point_diff = 5; 
 
 	buffer[1,1] = 0
 	port = 40000
-	tout_open = 60 
-	tout_rec = 60
-	$temp  = "";
-	CALL open_socket	;Connecting communication
-	IF sock_id < 0 THEN 
-		GOTO exit_end 
+	$temp = "";
+	CALL open_socket; Connecting communication
+	IF sock_id<0 THEN
+		GOTO exit_end
 	END
-	text_id = 0 
-	tout = 60 
-	eret = 0 
-	rret = 0
-	netPos = 0
+	text_id = 0
+	
+	netpos = 0
 	circle = 0
-	pcexecute 1: recv,-1
-	pcexecute 2: writeStats,-1
-	posRead = 0;
-	posWrite = 0;
-	sending_mode =0
+	coordshift[1] = 0
+	coordshift[2] = 0
+	coordshift[3] = 0
+	
+	POINT curpoint = HERE; 
+	time = 1
+	PCEXECUTE 1: recv,-1
+	PCEXECUTE 2: writestats,-1
+	
+	posread = 0;
+	poswrite = 0;
+	sending_mode = 0
+	movespeed = 15
+	
+	shiftspeed = 10;
+	shiftDelta = 5;
 	
 	while 1==1 do
 		if circle <> 0
@@ -46,9 +70,19 @@
 				pos_read = 1
 			     end
 			    call execution(.id,.cmd,.param,.vec1,.vec2,.vec3,.vec4,.vec5,.vec6)
-			
         		end
-			
+			IF time>100 THEN
+				;CALL curpointproc
+				time = 0
+				POINT .p = HERE
+				SPEED shiftSpeed
+				POINT .spoint = SHIFT(.p BY coordshift[1],coordshift[2],coordshift[3])
+				DECOMPOSE .arr[1] = .spoint
+				Print "arr: ",.arr[1]," ",.arr[2]," ", .arr[3]
+				Print "coordshift: ",coordshift[1]," ",coordshift[2]," ", coordshift[3]
+				HMOVE .spoint
+			END
+			time = time+1
 		end
 	end;
 exit:
@@ -59,6 +93,24 @@ exit:
 	PRINT "SOCKEC_CLOSED"
 exit_end:
 .END 
+
+.PROGRAM curpointproc()
+	;DECOMPOSE .arr[1] = curPoint
+	.k = DISTANCE(HERE,curpoint)
+	IF (.k>5) THEN
+		.e = INRANGE(curpoint)
+		IF (.e>0) THEN
+			sending_mode = 1
+			CALL sendstring(0,c_err,.e,0,0,0,0,0,0);
+			sending_mode = 0
+		ELSE
+			SPEED movespeed MM/S ALWAYS
+			HMOVE curpoint
+		END
+	END
+	;TWAIT 0.5
+.END
+
 
 .PROGRAM execution(.id,.cmd,.param,.vec1,.vec2,.vec3,.vec4,.vec5,.vec6)
 	case .cmd of
@@ -102,10 +154,61 @@ exit_end:
 		end
 		SPEED .jspeed*3 MM/S,.jspeed DEG/S ALWAYS
 		JMOVE #PPOINT(.vec1,.vec2,.vec3,.vec4,.vec5,.vec6)
+	VALUE c_home1:
+		IF (.param<=0) THEN
+			.jspeed = 10
+		ELSE
+			.jspeed = .param
+		END
+		SPEED .jspeed*3 MM/S,.jspeed DEG/S ALWAYS
+		HOME
+	VALUE c_home2:
+		IF (.param<=0) THEN
+			.jspeed = 10
+		ELSE
+			.jspeed = .param
+		END
+		SPEED .jspeed MM/S,.jspeed DEG/S ALWAYS
+		HOME 2
+	VALUE c_d_point:
+		POINT .p = TRANS(.vec1,.vec2,.vec3,.vec4,.vec5,.vec6)
+		.e = INRANGE(.p)
+		IF (.e>0) THEN
+			sending_mode = 1
+			CALL sendstring(0,c_err,.e,0,0,0,0,0,0);
+			sending_mode = 0
+		ELSE
+			IF (.param<=0) THEN
+				.jspeed = 10
+			ELSE
+				.jspeed = .param
+			END
+			SPEED .jspeed MM/S,.jspeed DEG/S ALWAYS
+			HMOVE .p
+		END
+	VALUE c_draw:
+		IF (.param<=0) THEN
+			.jspeed = 10
+		ELSE
+			.jspeed = .param
+		END
+		DRAW .vec1,.vec2,.vec3,.vec4,.vec5,.vec6,.jspeed MM/S
+	VALUE c_set_pos:
+		POINT curpoint = TRANS(.vec1,.vec2,.vec3,.vec4,.vec5,.vec6)
+		movespeed = .param
+	VALUE C_SET_DELTA_POS:
+		coorshift[1] = .vec1
+		coorshift[2] = .vec2
+		coorshift[3] = .vec3
+		coorshift[4] = .vec4
+		coorshift[5] = .vec5
+		coorshift[6] = .vec6
+		shiftspeed = .param	
 	any :
  		print "Number of command: ",.tmp[2]
 	end
 .END
+
 
 .PROGRAM writeStats
 if circle<>1
@@ -128,6 +231,7 @@ if circle<>1
 end
 .END
 
+
 .PROGRAM sendstring(.id,.cmd,.param,.vec1,.vec2,.vec3,.vec4,.vec5,.vec6)
 ;Fullen des Sendstrings und verschicken
 
@@ -141,8 +245,6 @@ end
 	.$send_buf[1] = .$send_buf[1] + $ENCODE(/F6.0,.vec4)+" "
 	.$send_buf[1] = .$send_buf[1] + $ENCODE(/F6.0,.vec5)+" "
 	.$send_buf[1] = .$send_buf[1] + $ENCODE(/F6.0,.vec6)+" "
-	.$send_buf[1] = .$send_buf[1] + $chr(13)
-
 	.buf_n = 1
 	.sret = 1
 	TCP_SEND .sret,sock_id,.$send_buf[1],.buf_n,10
@@ -156,27 +258,27 @@ end
 .PROGRAM open_socket() ;Starting communicatin 
 	er_count =0 
 listen:
-	TCP_LISTEN retl,port 
-	IF retl<0 THEN
+	TCP_LISTEN .retl,port 
+	IF .retl<0 THEN
 		IF er_count >= 5 THEN
 			PRINT "Connection with PC is failed (LISTEN). Program is stopped." 
 			sockjd = -1 
 			goto exit 
 		ELSE
 			er_count = er_count+1
-			PRINT "TCPJJSTEN error=",retl," error соunt=",er_count 
+			PRINT "TCPJJSTEN error=",.retl," error niunt=",er_count 
 			GOTO listen
 		END
 	ELSE
-		PRINT "TCP_LISTEN OK ",retl
+		PRINT "TCP_LISTEN OK ",.retl
 	END
 	er_count =0 
 accept:
-	TCP_ACCEPT sock_id,port,tout_open,ip[1]
+	TCP_ACCEPT sock_id,port,60,ip[1]
 	IF sock_id<0 THEN
 		IF er_count >= 5 THEN
 			PRINT "Connection with PC is failed (ACCEPT). Program is stopped."
- 			TCP_END_LISTEN ret,port 
+ 			TCP_END_LISTEN .ret,port 
 			sock_id = -1
 		ELSE
 			er_count = er_count+1
@@ -192,78 +294,78 @@ exit:
 .PROGRAM send(.ret,.$data)	;Communication Sending data
 	$send_buf[1] = .$data 
 	buf_n = 1 
-	.ret = 1
-	TCP_SEND sret,sock_id,$send_buf[1],buf_n,tout 
-	IF sret < 0 THEN 
-		.ret = -1
-		PRINT "TCP_SEND error in SEND",sret 
+	TCP_SEND .sret,sock_id,$send_buf[1],buf_n,60 
+	IF .sret < 0 THEN 
+		PRINT "TCP_SEND error in SEND",.sret 
 	ELSE
-		PRINT "TCP_SEND OK in SEND",sret
+		PRINT "TCP_SEND OK in SEND",.sret
 	END
 .END
-.PROGRAM recv() ;Communication Receiving data 
-	if circle<>1
+
+.PROGRAM recv() ;Communication Receiving data
+	IF circle<>1 THEN
 		TCP_RECV rret,sock_id,$recv_buf[1],.num,10,64
-		IF rret < 0 THEN
-			PRINT "TCP_RECV error in RECV",rret 
+		IF rret<0 THEN
+			PRINT "TCP_RECV error in RECV",rret
 		ELSE
-			IF .num > 0 THEN
-				PRINT "TCP_RECV OK in RECV",rret 
+			IF .num>0 THEN
+				PRINT "TCP_RECV OK in RECV",rret
 				.flg = 0
 				.pos = 1
-				for .n = 1 to .num
-					$temp = $temp + $recv_buf[.n]
- 					if( len($temp)>=63)
-						.flg = 1	
-						for .i=1 to 9
-        						.$value = $decode($temp," ",0)
-        						.tmp[.i] = val(.$value)
- 							.$value = $decode($temp," ",1)
-						END
-						for .i = 1 to 9
-							buffer[.pos,.i] = .tmp[.i]
-						end
-						.pos = .pos +1
-						print .tmp[1]," ",.tmp[2]," ",.tmp[3]," ",.tmp[4]," ",.tmp[5]," ",.tmp[6]," ",.tmp[7]," ",.tmp[8]," ",.tmp[9]
-						if .tmp[2] == C_STOP
-		 					circle = 1;
-							GOTO rec_exit
-						end
-						buffer[pos_write,1] = .tmp[1] 
-        					buffer[pos_write,2] = .tmp[2]
-        					buffer[pos_write,3] = .tmp[3]
-        					buffer[pos_write,4] = .tmp[4]
-        					buffer[pos_write,5] = .tmp[5]
-        					buffer[pos_write,6] = .tmp[6]
-        					buffer[pos_write,7] = .tmp[7]
-        					buffer[pos_write,8] = .tmp[8]
-        					buffer[pos_write,9] = .tmp[9]
-						pos_write = pos_write + 1
-						if pos_write == 10000 then
-							pos_write = 1
-						end
-					end
-				end
-			end
-		END	
-	end
+				FOR .n = 1 TO .num
+				$temp = $temp+$recv_buf[.n]
+				PRINT "TEMP: ",$temp,"|"
+				PRINT "BUF: ",$recv_buf[.n],"|"
+				IF (LEN($temp)>=63) THEN
+					.flg = 1
+					FOR .i = 1 TO 9
+						.$value = $DECODE($temp," ",0)
+						.tmp[.i] = VAL(.$value)
+						.$value = $DECODE($temp," ",1)
+					END
+					FOR .i = 1 TO 9
+						buffer[.pos,.i] = .tmp[.i]
+					END
+					.pos = .pos+1
+					;PRINT .tmp[1]," ",.tmp[2]," ",.tmp[3]," ",.tmp[4]," ",.tmp[5]," ",.tmp[6]," ",.tmp[7]," ",.tmp[8]," ",.tmp[9]
+					IF .tmp[2]==c_stop THEN
+						circle = 1;
+						GOTO rec_exit
+					END
+					buffer[pos_write,1] = .tmp[1]
+					buffer[pos_write,2] = .tmp[2]
+					buffer[pos_write,3] = .tmp[3]
+					buffer[pos_write,4] = .tmp[4]
+					buffer[pos_write,5] = .tmp[5]
+					buffer[pos_write,6] = .tmp[6]
+					buffer[pos_write,7] = .tmp[7]
+					buffer[pos_write,8] = .tmp[8]
+					buffer[pos_write,9] = .tmp[9]
+					pos_write = pos_write+1
+					IF pos_write==10000 THEN
+						pos_write = 1
+					END
+				END
+			END
+		END
+	END
+END
 rec_exit:
-.END 
-
+.END
 .PROGRAM close_socket();Closing communication
 	PRINT "CLOSE_SOCEC_WORKS"
-	TCP_CLOSE ret,sock_id,5	;Normal socket closure
-	IF ret <0 THEN
-		PRINT "TCP_CLOSE error ERROR=(",ret,")",$ERROR(ret)
-		TCP_CLOSE ret1 ,sock_id	;Forced closure of socket (shutdown)
+	TCP_CLOSE .ret,sock_id,5	;Normal socket closure
+	IF .ret <0 THEN
+		PRINT "TCP_CLOSE error ERROR=(",.ret,")",$ERROR(ret)
+		TCP_CLOSE .ret1 ,sock_id	;Forced closure of socket (shutdown)
 		IF ret < 0 THEN
 			PRINT "TCP_CLOSE error id=",sock_id
 		END
 	ELSE
 		PRINT "TCP_CLOSE OK id=",sock_id
 	END
-	TCP_END_LISTEN ret,port 
-	IF ret < 0 THEN
+	TCP_END_LISTEN .ret,port 
+	IF .ret < 0 THEN
 		PRINT "TCP_CLOSE error id=",sock_id 
 	ELSE
 		PRINT "TCP_CLOSE OK id=",sock_id
