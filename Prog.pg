@@ -15,8 +15,8 @@
 	C_DELTA_POS_ENABLE = 16; // разрешаем смещение на условную единицу
 	C_DELTA_POS_DISABLE = 17; // запрещаем смещение на условную единицу
 	C_SENSOR_VALS = 18; // значения с сенсора
-	C_START_GRAVITY_PROGRAM = 19; // включить программу гравитации
-	C_GRAVITY_PROGRAM_OFF = 20; // выключить программу гравитации
+	C_START_GRAVITY = 19; // включить программу гравитации
+	C_STOP_GRAVITY = 20; // выключить программу гравитации
 	
 	; идентификаторы алгоритмов управления
 	A_NULL = 0 ; ничего не делать
@@ -65,6 +65,13 @@
 	sensorVals[5] = 0
 	sensorVals[6] = 0
 	
+	sensorLimits[1] = 100; x
+	sensorLimits[2] = 100; y
+	sensorLimits[3] = 100; z
+	sensorLimits[4] = 100; tx
+	sensorLimits[5] = 100; ty
+	sensorLimits[6] = 100; tz
+	
 	sensorsMins[1] = 99999;
 	sensorsMins[2] = 99999;
 	sensorsMins[3] = 99999;
@@ -86,8 +93,7 @@
 	POINT shiftP = NULL
 	
 	deltaposenable = 0
-	
-	
+
 	
 	print algN
 	while 1==1 do
@@ -138,26 +144,34 @@ exit_end:
 .PROGRAM gravitationProc
 	.coordX = 0
 	.coordY = 0
-	if sensorVals[1]>0 then
-		if sensorVals[1]>sensorsMins[1] then
+	.coordZ = 0
+	
+	PRINT 2: abs(sensorVals[1]-sensorsMins[1])," ",abs(sensorVals[2]-sensorsMins[2])," ",abs(sensorVals[3]-sensorsMins[3])
+	PRINT sensorVals[1]," ",sensorsMins[1],"    ",sensorVals[2]," ",sensorsMins[2],"    ",sensorVals[3]," ",sensorsMins[3]
+	
+	if abs(sensorVals[1]-sensorsMins[1])> sensorLimits[1] then
+		if sensorVals[1]>sensorsMins[1] then		
 			.coordX = 5;
-		end
-	else
-		if sensorVals[1]<-sensorsMins[1] then
+		else
 			.coordX = -5 
 		end
 	end
-	if sensorVals[2]>0 then
-		if sensorVals[2]>sensorsMins[2] then
+	if abs(sensorVals[2]-sensorsMins[2])> sensorLimits[2] then
+		if sensorVals[2]>sensorsMins[2] then		
 			.coordY = 5;
-		end
-	else
-		if sensorVals[2]<-sensorsMins[2] then
-			.coordY = -5
+		else
+			.coordY = -5 
 		end
 	end
-	;PRINT "X=",.coordX," Y=",.coordY;
-	DRAW -.coordX,.coordY,0,0,0,0,20 MM/S
+	if abs(sensorVals[3]-sensorsMins[3])> sensorLimits[3] then
+		if sensorVals[3]>sensorsMins[3] then		
+			.coordZ = -5;
+		else
+			.coordZ = 5 
+		end
+	end
+	PRINT "X=",.coordX," Y=",.coordY," Z=",.coordZ;
+	DRAW -.coordX,.coordY,.coordZ,0,0,0,20 MM/S
 .END
 
 .PROGRAM deltaposproc
@@ -300,7 +314,7 @@ exit_end:
 		sensorVals[4]=.vec4
 		sensorVals[5]=.vec5
 		sensorVals[6]=.vec6
-	Value C_START_GRAVITY_PROGRAM:
+	Value C_START_GRAVITY:
 		PRINT "GRAVITY ",.vec1," ",.vec1
 		if (.vec1<100) then
 			algN = A_NULL
@@ -308,18 +322,19 @@ exit_end:
 			if (.vec2<100) then
 				algN = A_NULL
 			else		
-				sensorsMins[1] = .vec1;
-				sensorsMins[2] = .vec2;
-				sensorsMins[3] = .vec3;
-				sensorsMins[4] = .vec4;
-				sensorsMins[5] = .vec5;
-				sensorsMins[6] = .vec6;
+				sensorsMins[1] = sensorVals[1];
+				sensorsMins[2] = sensorVals[2];
+				sensorsMins[3] = sensorVals[3];
+				sensorsMins[4] = sensorVals[4];
+				sensorsMins[5] = sensorVals[5];
+				sensorsMins[6] = sensorVals[6];
+				
 				algN = A_GRAVITATION
 				SPEED 10 MM/S ALWAYS
 				PRINT "GRAVITY STARTED"
 			end
 		end		
-	Value C_GRAVITY_PROGRAM_OFF:
+	Value C_STOP_GRAVITY:
 		sensorsMins[1] = 99999;
 		sensorsMins[2] = 99999;
 		sensorsMins[3] = 99999;
@@ -327,6 +342,7 @@ exit_end:
 		sensorsMins[5] = 99999;
 		sensorsMins[6] = 99999;
 		algN = A_NULL
+		print "Get command to stop"
 	any :
  		print "Number of command: ",.cmd
 	end
