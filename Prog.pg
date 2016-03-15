@@ -1,4 +1,5 @@
 .PROGRAM m()
+	;управл€ющие программы от компьютера
 	C_STOP = 4; // остановка
 	C_J = 5; // относительный поворот одного оклена
  	C_GetPositionAxis = 6; // положение в поворотах
@@ -11,6 +12,18 @@
 	c_draw  = 13; //смещение
 	C_SET_POS = 14; //задание по почте
 	C_SET_DELTA_POS = 15; // задание на смещение на условную единицу
+	C_DELTA_POS_ENABLE = 16; // разрешаем смещение на условную единицу
+	C_DELTA_POS_DISABLE = 17; // запрещаем смещение на условную единицу
+	C_SENSOR_VALS = 18; // значени€ с сенсора
+	C_START_GRAVITY_PROGRAM = 19; // включить программу гравитации
+	C_GRAVITY_PROGRAM_OFF = 20; // выключить программу гравитации
+	
+	; идентификаторы алгоритмов управлени€
+	A_NULL = 0 ; ничего не делать
+	A_SET_CUR_POINT = 1 ; выход в точку
+	A_SET_DELTA_POINT = 2 ; смещение по ос€м 
+	A_GRAVITATION = 3 ; иммитаци€ гравитации
+	
 	
 	err_inrange_j1 = 1; 
 	err_inrange_j2 = 2;
@@ -19,6 +32,10 @@
 	err_inrange_j5 = 16; 
 	err_inrange_j6 = 32; 
 	err_not_inrange = 32786; 
+	
+	zMax = -360
+	algN = 0
+	
 
 	max_point_diff = 5; 
 
@@ -36,6 +53,24 @@
 	coordshift[1] = 0
 	coordshift[2] = 0
 	coordshift[3] = 0
+	coordshift[4] = 0
+	coordshift[5] = 0
+	coordshift[6] = 0
+	
+	
+	sensorVals[1] = 0
+	sensorVals[2] = 0
+	sensorVals[3] = 0
+	sensorVals[4] = 0
+	sensorVals[5] = 0
+	sensorVals[6] = 0
+	
+	sensorsMins[1] = 99999;
+	sensorsMins[2] = 99999;
+	sensorsMins[3] = 99999;
+	sensorsMins[4] = 99999;
+	sensorsMins[5] = 99999;
+	sensorsMins[6] = 99999;
 	
 	POINT curpoint = HERE; 
 	time = 1
@@ -48,10 +83,15 @@
 	movespeed = 15
 	
 	shiftspeed = 10;
-	shiftDelta = 5;
+	POINT shiftP = NULL
 	
+	deltaposenable = 0
+	
+	
+	
+	print algN
 	while 1==1 do
-		if circle <> 0
+		if circle <> 0 then
 			PRINT "Get exit command"	
 			GOTO exit 
 		else
@@ -63,24 +103,25 @@
 		            .vec2 = buffer[pos_read,5]
 		            .vec3 = buffer[pos_read,6]
 		            .vec4 = buffer[pos_read,7]
-			    .vec5 = buffer[pos_read,8]
+					.vec5 = buffer[pos_read,8]
 		            .vec6 = buffer[pos_read,9]
-		 	    pos_read = pos_read + 1
-    			    if pos_read == 10000 then
-				pos_read = 1
-			     end
-			    call execution(.id,.cmd,.param,.vec1,.vec2,.vec3,.vec4,.vec5,.vec6)
-        		end
-			IF time>100 THEN
-				;CALL curpointproc
+					pos_read = pos_read + 1
+    			    if pos_read == 1000 then
+						pos_read = 1
+					end
+					call execution(.id,.cmd,.param,.vec1,.vec2,.vec3,.vec4,.vec5,.vec6)
+        	end
+			IF time>10 THEN
+				case algN of
+				value A_SET_CUR_POINT:
+					CALL curpointproc
+				value A_SET_DELTA_POINT:
+					CALL deltaposproc
+				value A_GRAVITATION:
+					CALL gravitationProc
+				end	
+				;print sensorVals[1]," ",sensorVals[2]," ",sensorVals[3]," ",sensorVals[4]," ",sensorVals[5]," ",sensorVals[6]
 				time = 0
-				POINT .p = HERE
-				SPEED shiftSpeed
-				POINT .spoint = SHIFT(.p BY coordshift[1],coordshift[2],coordshift[3])
-				DECOMPOSE .arr[1] = .spoint
-				Print "arr: ",.arr[1]," ",.arr[2]," ", .arr[3]
-				Print "coordshift: ",coordshift[1]," ",coordshift[2]," ", coordshift[3]
-				HMOVE .spoint
 			END
 			time = time+1
 		end
@@ -93,6 +134,39 @@ exit:
 	PRINT "SOCKEC_CLOSED"
 exit_end:
 .END 
+
+.PROGRAM gravitationProc
+	.coordX = 0
+	.coordY = 0
+	if sensorVals[1]>0 then
+		if sensorVals[1]>sensorsMins[1] then
+			.coordX = 5;
+		end
+	else
+		if sensorVals[1]<-sensorsMins[1] then
+			.coordX = -5 
+		end
+	end
+	if sensorVals[2]>0 then
+		if sensorVals[2]>sensorsMins[2] then
+			.coordY = 5;
+		end
+	else
+		if sensorVals[2]<-sensorsMins[2] then
+			.coordY = -5
+		end
+	end
+	;PRINT "X=",.coordX," Y=",.coordY;
+	DRAW -.coordX,.coordY,0,0,0,0,20 MM/S
+.END
+
+.PROGRAM deltaposproc
+	POINT .shiftP = trans(coordshift[1],coordshift[2],coordshift[3],coordshift[4],coordshift[5],coordshift[6]);
+	print coordshift[1],"  ",coordshift[2],"  ",coordshift[3],"  ",coordshift[4],"  ",coordshift[5],"  ",coordshift[6]
+	if DISTANCE(NULL,.shiftP)>0  then
+		DRAW coordshift[1],coordshift[2],coordshift[3],coordshift[4],coordshift[5],coordshift[6],shiftspeed MM/S
+	end
+.end
 
 .PROGRAM curpointproc()
 	;DECOMPOSE .arr[1] = curPoint
@@ -115,7 +189,7 @@ exit_end:
 .PROGRAM execution(.id,.cmd,.param,.vec1,.vec2,.vec3,.vec4,.vec5,.vec6)
 	case .cmd of
 	value C_J:
-		if (.param<=0) 
+		if (.param<=0) then
 			.jspeed = 1
 		else
 			.jspeed = .param
@@ -196,23 +270,72 @@ exit_end:
 	VALUE c_set_pos:
 		POINT curpoint = TRANS(.vec1,.vec2,.vec3,.vec4,.vec5,.vec6)
 		movespeed = .param
-	VALUE C_SET_DELTA_POS:
-		coorshift[1] = .vec1
-		coorshift[2] = .vec2
-		coorshift[3] = .vec3
-		coorshift[4] = .vec4
-		coorshift[5] = .vec5
-		coorshift[6] = .vec6
-		shiftspeed = .param	
+		algN = A_SET_CUR_POINT
+	VALUE C_SET_DELTA_POS:	
+		IF (.param<=0) THEN
+			shiftspeed = 10
+		ELSE
+			shiftspeed = .param
+		END
+		coordshift[1] = .vec1
+		coordshift[2] = .vec2
+		coordshift[3] = .vec3
+		coordshift[4] = .vec4
+		coordshift[5] = .vec5
+		coordshift[6] = .vec6
+	VALUE C_DELTA_POS_ENABLE:	
+		algN = A_SET_DELTA_POINT
+	VALUE C_DELTA_POS_DISABLE:
+		algN = A_NULL
+		coordshift[1] = 0
+		coordshift[2] = 0
+		coordshift[3] = 0
+		coordshift[4] = 0
+		coordshift[5] = 0
+		coordshift[6] = 0
+	Value C_SENSOR_VALS:
+		sensorVals[1]=.vec1
+		sensorVals[2]=.vec2
+		sensorVals[3]=.vec3
+		sensorVals[4]=.vec4
+		sensorVals[5]=.vec5
+		sensorVals[6]=.vec6
+	Value C_START_GRAVITY_PROGRAM:
+		PRINT "GRAVITY ",.vec1," ",.vec1
+		if (.vec1<100) then
+			algN = A_NULL
+		else 
+			if (.vec2<100) then
+				algN = A_NULL
+			else		
+				sensorsMins[1] = .vec1;
+				sensorsMins[2] = .vec2;
+				sensorsMins[3] = .vec3;
+				sensorsMins[4] = .vec4;
+				sensorsMins[5] = .vec5;
+				sensorsMins[6] = .vec6;
+				algN = A_GRAVITATION
+				SPEED 10 MM/S ALWAYS
+				PRINT "GRAVITY STARTED"
+			end
+		end		
+	Value C_GRAVITY_PROGRAM_OFF:
+		sensorsMins[1] = 99999;
+		sensorsMins[2] = 99999;
+		sensorsMins[3] = 99999;
+		sensorsMins[4] = 99999;
+		sensorsMins[5] = 99999;
+		sensorsMins[6] = 99999;
+		algN = A_NULL
 	any :
- 		print "Number of command: ",.tmp[2]
+ 		print "Number of command: ",.cmd
 	end
 .END
 
 
 .PROGRAM writeStats
 if circle<>1
-	PRINT "SEND STATS"
+	;PRINT "SEND STATS"
 		HERE .#p
 		DECOMPOSE .arr[1]=.#p
 		while sending_mode == 1 do
@@ -289,6 +412,7 @@ accept:
 		PRINT "TCP_ACCEPT OK id=",sock_id
 	END
 exit:
+	RETURN
 .END
 
 .PROGRAM send(.ret,.$data)	;Communication Sending data
@@ -306,16 +430,16 @@ exit:
 	IF circle<>1 THEN
 		TCP_RECV rret,sock_id,$recv_buf[1],.num,10,64
 		IF rret<0 THEN
-			PRINT "TCP_RECV error in RECV",rret
+			;PRINT "TCP_RECV error in RECV",rret
 		ELSE
 			IF .num>0 THEN
-				PRINT "TCP_RECV OK in RECV",rret
+				;PRINT "TCP_RECV OK in RECV",rret
 				.flg = 0
 				.pos = 1
 				FOR .n = 1 TO .num
 				$temp = $temp+$recv_buf[.n]
-				PRINT "TEMP: ",$temp,"|"
-				PRINT "BUF: ",$recv_buf[.n],"|"
+				;PRINT "TEMP: ",$temp,"|"
+				;PRINT "BUF: ",$recv_buf[.n],"|"
 				IF (LEN($temp)>=63) THEN
 					.flg = 1
 					FOR .i = 1 TO 9
@@ -352,6 +476,7 @@ exit:
 END
 rec_exit:
 .END
+
 .PROGRAM close_socket();Closing communication
 	PRINT "CLOSE_SOCEC_WORKS"
 	TCP_CLOSE .ret,sock_id,5	;Normal socket closure
@@ -370,5 +495,6 @@ rec_exit:
 	ELSE
 		PRINT "TCP_CLOSE OK id=",sock_id
 	END
+	RETURN
 .END
 
