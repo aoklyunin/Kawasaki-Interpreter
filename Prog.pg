@@ -35,6 +35,7 @@
 	
 	zMax = -360
 	algN = 0
+	algP = 0
 	
 
 	max_point_diff = 5; 
@@ -93,9 +94,14 @@
 	POINT shiftP = NULL
 	
 	deltaposenable = 0
-
+	maxDeltaPos = 10
 	
-	print algN
+	kx = 0;
+	ky = 0;
+	kz = 0;
+	
+	POINT deltaPoint1 = HERE
+	POINT deltaPoint2 = HERE
 	while 1==1 do
 		if circle <> 0 then
 			PRINT "Get exit command"	
@@ -117,7 +123,7 @@
 					end
 					call execution(.id,.cmd,.param,.vec1,.vec2,.vec3,.vec4,.vec5,.vec6)
         	end
-			IF time>10 THEN
+			IF time>3 THEN
 				case algN of
 				value A_SET_CUR_POINT:
 					CALL curpointproc
@@ -146,40 +152,45 @@ exit_end:
 	.coordY = 0
 	.coordZ = 0
 	
-	PRINT 2: abs(sensorVals[1]-sensorsMins[1])," ",abs(sensorVals[2]-sensorsMins[2])," ",abs(sensorVals[3]-sensorsMins[3])
-	PRINT sensorVals[1]," ",sensorsMins[1],"    ",sensorVals[2]," ",sensorsMins[2],"    ",sensorVals[3]," ",sensorsMins[3]
+	.deltaX = sensorVals[1]-sensorsMins[1]
+	.deltaY = sensorVals[2]-sensorsMins[2]
+	.deltaZ = sensorVals[3]-sensorsMins[3]
+
+	.uX = deltaX*kX;
+	.uY = deltaY*kY;
+	.uZ = deltaZ*kZ;
 	
-	if abs(sensorVals[1]-sensorsMins[1])> sensorLimits[1] then
-		if sensorVals[1]>sensorsMins[1] then		
-			.coordX = 5;
-		else
-			.coordX = -5 
+	if (.uX>maxDeltaPos) then
+		.uX = maxDeltaPos
+	else
+		if (.uX<-maxDeltaPos) then
+			.uX = -maxDeltaPos
 		end
 	end
-	if abs(sensorVals[2]-sensorsMins[2])> sensorLimits[2] then
-		if sensorVals[2]>sensorsMins[2] then		
-			.coordY = 5;
-		else
-			.coordY = -5 
+	
+	if (.uY>maxDeltaPos) then
+		.uY = maxDeltaPos
+	else
+		if (.uY<-maxDeltaPos) then
+			.uY = -maxDeltaPos
 		end
 	end
-	if abs(sensorVals[3]-sensorsMins[3])> sensorLimits[3] then
-		if sensorVals[3]>sensorsMins[3] then		
-			.coordZ = -5;
-		else
-			.coordZ = 5 
+	
+	if (.uZ>maxDeltaPos) then
+		.uZ = maxDeltaPos
+	else
+		if (.uZ<-maxDeltaPos) then
+			.uZ = -maxDeltaPos
 		end
-	end
-	PRINT "X=",.coordX," Y=",.coordY," Z=",.coordZ;
-	DRAW -.coordX,.coordY,.coordZ,0,0,0,20 MM/S
+	end	
+	PRINT "uX=",.uX," uY=",.uY," uZ=",.uZ;
 .END
 
 .PROGRAM deltaposproc
-	POINT .shiftP = trans(coordshift[1],coordshift[2],coordshift[3],coordshift[4],coordshift[5],coordshift[6]);
-	print coordshift[1],"  ",coordshift[2],"  ",coordshift[3],"  ",coordshift[4],"  ",coordshift[5],"  ",coordshift[6]
-	if DISTANCE(NULL,.shiftP)>0  then
-		DRAW coordshift[1],coordshift[2],coordshift[3],coordshift[4],coordshift[5],coordshift[6],shiftspeed MM/S
-	end
+	;IF DISTANCE(DEST,HERE)<0.5 THEN
+		POINT .p = SHIFT(DEST BY coordshift[1],coordshift[2],coordshift[3])
+		LMOVE .p
+	;END
 .end
 
 .PROGRAM curpointproc()
@@ -199,8 +210,93 @@ exit_end:
 	;TWAIT 0.5
 .END
 
+.PROGRAM processCommand(.id,.cmd,.param,.vec1,.vec2,.vec3,.vec4,.vec5,.vec6)
+	.flg = 0					
+	case .cmd of
+	value c_stop:
+		circle = 1;
+		.flg = 1
+	value C_SENSOR_VALS:
+		sensorVals[1]=.vec1
+		sensorVals[2]=.vec2
+		sensorVals[3]=.vec3
+		sensorVals[4]=.vec4
+		sensorVals[5]=.vec5
+		sensorVals[6]=.vec6
+		;print "SENSOR"
+		.flg = 1
+		;GOTO row_end
+	VALUE C_SET_DELTA_POS:	
+		IF (.param<=0) THEN
+			shiftspeed = 10
+		ELSE
+			shiftspeed = .param
+		END
+		coordshift[1] = .vec1
+		coordshift[2] = .vec2
+		coordshift[3] = .vec3
+		coordshift[4] = .vec4
+		coordshift[5] = .vec5
+		coordshift[6] = .vec6
+		;PRINT "IT WORKS"
+	VALUE C_DELTA_POS_DISABLE:
+		algN = A_NULL
+		coordshift[1] = 0
+		coordshift[2] = 0
+		coordshift[3] = 0
+		coordshift[4] = 0
+		coordshift[5] = 0
+		coordshift[6] = 0
+		PRINT "GET DELTA DISABLE"
+		BRAKE
+		.flg = 1;
+	Value C_START_GRAVITY:	
+		kX = .vec1
+		kY = .vec2
+		kZ = .vec3
+		
+		sensorsMins[1] = sensorVals[1];
+		sensorsMins[2] = sensorVals[2];
+		sensorsMins[3] = sensorVals[3];
+		sensorsMins[4] = sensorVals[4];
+		sensorsMins[5] = sensorVals[5];
+		sensorsMins[6] = sensorVals[6];
+		algN = A_GRAVITATION
+		SPEED 10 MM/S ALWAYS
+		PRINT "GRAVITY STARTED"
+		.flg = 1;
+	Value C_STOP_GRAVITY:
+		sensorsMins[1] = 99999;
+		sensorsMins[2] = 99999;
+		sensorsMins[3] = 99999;
+		sensorsMins[4] = 99999;
+		sensorsMins[5] = 99999;
+		sensorsMins[6] = 99999;
+		algN = A_NULL
+		print "Get command to stop"
+		.flg = 1;
+	end
+	
+	if .flg==0 then
+		;print "BUF"
+		buffer[pos_write,1] = .id
+		buffer[pos_write,2] = .cmd
+		buffer[pos_write,3] = .param
+		buffer[pos_write,4] = .vec1
+		buffer[pos_write,5] = .vec2
+		buffer[pos_write,6] = .vec3
+		buffer[pos_write,7] = .vec4
+		buffer[pos_write,8] = .vec5
+		buffer[pos_write,9] = .vec6
+		pos_write = pos_write+1
+		IF pos_write==1000 THEN
+			pos_write = 1
+		END
+	end
+.END
 
 .PROGRAM execution(.id,.cmd,.param,.vec1,.vec2,.vec3,.vec4,.vec5,.vec6)
+	;PRINT "GET CMD NUMBER ",.cmd
 	case .cmd of
 	value C_J:
 		if (.param<=0) then
@@ -285,66 +381,21 @@ exit_end:
 		POINT curpoint = TRANS(.vec1,.vec2,.vec3,.vec4,.vec5,.vec6)
 		movespeed = .param
 		algN = A_SET_CUR_POINT
-	VALUE C_SET_DELTA_POS:	
-		IF (.param<=0) THEN
-			shiftspeed = 10
-		ELSE
-			shiftspeed = .param
-		END
-		coordshift[1] = .vec1
-		coordshift[2] = .vec2
-		coordshift[3] = .vec3
-		coordshift[4] = .vec4
-		coordshift[5] = .vec5
-		coordshift[6] = .vec6
 	VALUE C_DELTA_POS_ENABLE:	
 		algN = A_SET_DELTA_POINT
-	VALUE C_DELTA_POS_DISABLE:
-		algN = A_NULL
-		coordshift[1] = 0
-		coordshift[2] = 0
-		coordshift[3] = 0
-		coordshift[4] = 0
-		coordshift[5] = 0
-		coordshift[6] = 0
-	Value C_SENSOR_VALS:
-		sensorVals[1]=.vec1
-		sensorVals[2]=.vec2
-		sensorVals[3]=.vec3
-		sensorVals[4]=.vec4
-		sensorVals[5]=.vec5
-		sensorVals[6]=.vec6
-	Value C_START_GRAVITY:
-		PRINT "GRAVITY ",.vec1," ",.vec1
-		if (.vec1<100) then
-			algN = A_NULL
-		else 
-			if (.vec2<100) then
-				algN = A_NULL
-			else		
-				sensorsMins[1] = sensorVals[1];
-				sensorsMins[2] = sensorVals[2];
-				sensorsMins[3] = sensorVals[3];
-				sensorsMins[4] = sensorVals[4];
-				sensorsMins[5] = sensorVals[5];
-				sensorsMins[6] = sensorVals[6];
-				
-				algN = A_GRAVITATION
-				SPEED 10 MM/S ALWAYS
-				PRINT "GRAVITY STARTED"
-			end
-		end		
-	Value C_STOP_GRAVITY:
-		sensorsMins[1] = 99999;
-		sensorsMins[2] = 99999;
-		sensorsMins[3] = 99999;
-		sensorsMins[4] = 99999;
-		sensorsMins[5] = 99999;
-		sensorsMins[6] = 99999;
-		algN = A_NULL
-		print "Get command to stop"
+		IF (.param<=0) THEN
+			.speed = 10
+		ELSE 
+			IF (.param>=40)
+				.speed = 40
+			ELSE
+				.speed = .param
+			END
+		END
+		SPEED .speed ALWAYS
+		PRINT "GET DELTA ENABLE"
 	any :
- 		print "Number of command: ",.cmd
+ 		;print "Number of command: ",.cmd
 	end
 .END
 
@@ -450,47 +501,23 @@ exit:
 		ELSE
 			IF .num>0 THEN
 				;PRINT "TCP_RECV OK in RECV",rret
-				.flg = 0
-				.pos = 1
 				FOR .n = 1 TO .num
-				$temp = $temp+$recv_buf[.n]
-				;PRINT "TEMP: ",$temp,"|"
-				;PRINT "BUF: ",$recv_buf[.n],"|"
-				IF (LEN($temp)>=63) THEN
-					.flg = 1
-					FOR .i = 1 TO 9
-						.$value = $DECODE($temp," ",0)
-						.tmp[.i] = VAL(.$value)
-						.$value = $DECODE($temp," ",1)
-					END
-					FOR .i = 1 TO 9
-						buffer[.pos,.i] = .tmp[.i]
-					END
-					.pos = .pos+1
-					;PRINT .tmp[1]," ",.tmp[2]," ",.tmp[3]," ",.tmp[4]," ",.tmp[5]," ",.tmp[6]," ",.tmp[7]," ",.tmp[8]," ",.tmp[9]
-					IF .tmp[2]==c_stop THEN
-						circle = 1;
-						GOTO rec_exit
-					END
-					buffer[pos_write,1] = .tmp[1]
-					buffer[pos_write,2] = .tmp[2]
-					buffer[pos_write,3] = .tmp[3]
-					buffer[pos_write,4] = .tmp[4]
-					buffer[pos_write,5] = .tmp[5]
-					buffer[pos_write,6] = .tmp[6]
-					buffer[pos_write,7] = .tmp[7]
-					buffer[pos_write,8] = .tmp[8]
-					buffer[pos_write,9] = .tmp[9]
-					pos_write = pos_write+1
-					IF pos_write==10000 THEN
-						pos_write = 1
+					$temp = $temp+$recv_buf[.n]
+					;PRINT "TEMP: ",$temp,"|"
+					;PRINT "BUF: ",$recv_buf[.n],"|"
+					IF (LEN($temp)>=63) THEN
+						FOR .i = 1 TO 9
+							.$value = $DECODE($temp," ",0)
+							.tmp[.i] = VAL(.$value)
+							.$value = $DECODE($temp," ",1)
+						END
+						;PRINT .tmp[1]," ",.tmp[2]," ",.tmp[3]," ",.tmp[4]," ",.tmp[5]," ",.tmp[6]," ",.tmp[7]," ",.tmp[8]," ",.tmp[9]
+						call processCommand(.tmp[1],.tmp[2],.tmp[3],.tmp[4],.tmp[5],.tmp[6],.tmp[7],.tmp[8],.tmp[9])
 					END
 				END
 			END
 		END
 	END
-END
-rec_exit:
 .END
 
 .PROGRAM close_socket();Closing communication
