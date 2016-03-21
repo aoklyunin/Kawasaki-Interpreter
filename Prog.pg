@@ -156,9 +156,9 @@ exit_end:
 	.deltaY = sensorVals[2]-sensorsMins[2]
 	.deltaZ = sensorVals[3]-sensorsMins[3]
 
-	.uX = deltaX*kX;
-	.uY = deltaY*kY;
-	.uZ = deltaZ*kZ;
+	.uX = .deltaX*kX/100;
+	.uY = .deltaY*kY/100;
+	.uZ = .deltaZ*kZ/100;
 	
 	if (.uX>maxDeltaPos) then
 		.uX = maxDeltaPos
@@ -183,6 +183,18 @@ exit_end:
 			.uZ = -maxDeltaPos
 		end
 	end	
+	
+	if (abs(.uX)<1) then 
+		.uX = 0 
+	end;
+	if (abs(.uY)<1) then 
+		.uY = 0 
+	end;
+	if (abs(.uZ)<1) then 
+		.uZ = 0 
+	end;
+	POINT .p = SHIFT(DEST BY -.uX,.uY,-.uZ)
+	LMOVE .p
 	PRINT "uX=",.uX," uY=",.uY," uZ=",.uZ;
 .END
 
@@ -262,7 +274,7 @@ exit_end:
 		sensorsMins[5] = sensorVals[5];
 		sensorsMins[6] = sensorVals[6];
 		algN = A_GRAVITATION
-		SPEED 10 MM/S ALWAYS
+		;SPEED 10 MM/S ALWAYS
 		PRINT "GRAVITY STARTED"
 		.flg = 1;
 	Value C_STOP_GRAVITY:
