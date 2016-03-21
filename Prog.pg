@@ -1,7 +1,3 @@
-.PROGRAM empty()
-
-.END
-
 .PROGRAM m()
 	;управл€ющие программы от компьютера
 	C_STOP = 4; // остановка
@@ -39,7 +35,7 @@
 	
 	zMax = -360
 	algN = 0
-	algP = 0
+	
 
 	max_point_diff = 5; 
 
@@ -98,6 +94,8 @@
 	
 	deltaposenable = 0
 
+	
+	print algN
 	while 1==1 do
 		if circle <> 0 then
 			PRINT "Get exit command"	
@@ -119,7 +117,7 @@
 					end
 					call execution(.id,.cmd,.param,.vec1,.vec2,.vec3,.vec4,.vec5,.vec6)
         	end
-			
+			IF time>10 THEN
 				case algN of
 				value A_SET_CUR_POINT:
 					CALL curpointproc
@@ -128,7 +126,10 @@
 				value A_GRAVITATION:
 					CALL gravitationProc
 				end	
-			TWAIT 0.05
+				;print sensorVals[1]," ",sensorVals[2]," ",sensorVals[3]," ",sensorVals[4]," ",sensorVals[5]," ",sensorVals[6]
+				time = 0
+			END
+			time = time+1
 		end
 	end;
 exit:
@@ -144,43 +145,40 @@ exit_end:
 	.coordX = 0
 	.coordY = 0
 	.coordZ = 0
+	
+	PRINT 2: abs(sensorVals[1]-sensorsMins[1])," ",abs(sensorVals[2]-sensorsMins[2])," ",abs(sensorVals[3]-sensorsMins[3])
+	PRINT sensorVals[1]," ",sensorsMins[1],"    ",sensorVals[2]," ",sensorsMins[2],"    ",sensorVals[3]," ",sensorsMins[3]
+	
 	if abs(sensorVals[1]-sensorsMins[1])> sensorLimits[1] then
 		if sensorVals[1]>sensorsMins[1] then		
-			.coordX = 1;
+			.coordX = 5;
 		else
-			.coordX = -1 
+			.coordX = -5 
 		end
 	end
 	if abs(sensorVals[2]-sensorsMins[2])> sensorLimits[2] then
 		if sensorVals[2]>sensorsMins[2] then		
-			.coordY = 1;
+			.coordY = 5;
 		else
-			.coordY = -1 
+			.coordY = -5 
 		end
 	end
 	if abs(sensorVals[3]-sensorsMins[3])> sensorLimits[3] then
 		if sensorVals[3]>sensorsMins[3] then		
-			.coordZ = -1;
+			.coordZ = -5;
 		else
-			.coordZ = 1 
+			.coordZ = 5 
 		end
 	end
+	PRINT "X=",.coordX," Y=",.coordY," Z=",.coordZ;
 	DRAW -.coordX,.coordY,.coordZ,0,0,0,20 MM/S
-	PRINT -.coordX,"  ",.coordY,"  ",.coordZ
 .END
 
 .PROGRAM deltaposproc
-	PRINT DISTANCE(DEST,HERE)
-    if (algP <> 0) then
-		if DISTANCE(DEST,HERE)<0.05
-			algP = 0
-		end
-	else
-		POINT shiftP = trans(coordshift[1],coordshift[2],coordshift[3],coordshift[4],coordshift[5],coordshift[6]);
-		if DISTANCE(NULL,shiftP)>0  then
-			DRAW coordshift[1],coordshift[2],coordshift[3],coordshift[4],coordshift[5],coordshift[6],shiftspeed MM/S
-		end
-		algP=1
+	POINT .shiftP = trans(coordshift[1],coordshift[2],coordshift[3],coordshift[4],coordshift[5],coordshift[6]);
+	print coordshift[1],"  ",coordshift[2],"  ",coordshift[3],"  ",coordshift[4],"  ",coordshift[5],"  ",coordshift[6]
+	if DISTANCE(NULL,.shiftP)>0  then
+		DRAW coordshift[1],coordshift[2],coordshift[3],coordshift[4],coordshift[5],coordshift[6],shiftspeed MM/S
 	end
 .end
 
@@ -288,36 +286,27 @@ exit_end:
 		movespeed = .param
 		algN = A_SET_CUR_POINT
 	VALUE C_SET_DELTA_POS:	
-		if (algN==A_NULL)
-			IF (.param<=0) THEN
-				shiftspeed = 10
-			ELSE
-				shiftspeed = .param
-			END
-			coordshift[1] = .vec1
-			coordshift[2] = .vec2
-			coordshift[3] = .vec3
-			coordshift[4] = .vec4
-			coordshift[5] = .vec5
-			coordshift[6] = .vec6
-			print "Get command to move delta"
-		end
+		IF (.param<=0) THEN
+			shiftspeed = 10
+		ELSE
+			shiftspeed = .param
+		END
+		coordshift[1] = .vec1
+		coordshift[2] = .vec2
+		coordshift[3] = .vec3
+		coordshift[4] = .vec4
+		coordshift[5] = .vec5
+		coordshift[6] = .vec6
 	VALUE C_DELTA_POS_ENABLE:	
-		if (algN==A_NULL) then
-			algN = A_SET_DELTA_POINT
-			print "Get command to start delta"
-		end
+		algN = A_SET_DELTA_POINT
 	VALUE C_DELTA_POS_DISABLE:
-		if (algN==A_SET_DELTA_POINT) then
-			algN = A_NULL
-			coordshift[1] = 0
-			coordshift[2] = 0
-			coordshift[3] = 0
-			coordshift[4] = 0
-			coordshift[5] = 0
-			coordshift[6] = 0
-			print "Get command to stop delta"
-		end
+		algN = A_NULL
+		coordshift[1] = 0
+		coordshift[2] = 0
+		coordshift[3] = 0
+		coordshift[4] = 0
+		coordshift[5] = 0
+		coordshift[6] = 0
 	Value C_SENSOR_VALS:
 		sensorVals[1]=.vec1
 		sensorVals[2]=.vec2
@@ -326,36 +315,34 @@ exit_end:
 		sensorVals[5]=.vec5
 		sensorVals[6]=.vec6
 	Value C_START_GRAVITY:
-		if(algN == A_NULL)
-			if (.vec1<100) then
-				algN = A_NULL
-			else 
-				if (.vec2<100) then
-					algN = A_NULL
-				else		
-					sensorsMins[1] = sensorVals[1];
-					sensorsMins[2] = sensorVals[2];
-					sensorsMins[3] = sensorVals[3];
-					sensorsMins[4] = sensorVals[4];
-					sensorsMins[5] = sensorVals[5];
-					sensorsMins[6] = sensorVals[6];
-					algN = A_GRAVITATION
-					SPEED 10 MM/S ALWAYS
-					PRINT "GRAVITY STARTED"
-				end
-			end		
-		end
-	Value C_STOP_GRAVITY:
-		if(algN == A_GRAVITATION)
-			sensorsMins[1] = 99999;
-			sensorsMins[2] = 99999;
-			sensorsMins[3] = 99999;
-			sensorsMins[4] = 99999;
-			sensorsMins[5] = 99999;
-			sensorsMins[6] = 99999;
+		PRINT "GRAVITY ",.vec1," ",.vec1
+		if (.vec1<100) then
 			algN = A_NULL
-			print "Get command to stop gravity"
-		end
+		else 
+			if (.vec2<100) then
+				algN = A_NULL
+			else		
+				sensorsMins[1] = sensorVals[1];
+				sensorsMins[2] = sensorVals[2];
+				sensorsMins[3] = sensorVals[3];
+				sensorsMins[4] = sensorVals[4];
+				sensorsMins[5] = sensorVals[5];
+				sensorsMins[6] = sensorVals[6];
+				
+				algN = A_GRAVITATION
+				SPEED 10 MM/S ALWAYS
+				PRINT "GRAVITY STARTED"
+			end
+		end		
+	Value C_STOP_GRAVITY:
+		sensorsMins[1] = 99999;
+		sensorsMins[2] = 99999;
+		sensorsMins[3] = 99999;
+		sensorsMins[4] = 99999;
+		sensorsMins[5] = 99999;
+		sensorsMins[6] = 99999;
+		algN = A_NULL
+		print "Get command to stop"
 	any :
  		print "Number of command: ",.cmd
 	end
